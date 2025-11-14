@@ -12,6 +12,7 @@ from apps.tenancy.models import Tenant
 from apps.providers.models import Provider
 from apps.iam.models import User
 from .models import Booking, BookingPassenger, BookingSeat, Ticket
+from apps.notifications.services import enqueue_event
 
 
 @transaction.atomic
