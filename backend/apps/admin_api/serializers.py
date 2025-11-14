@@ -4,6 +4,8 @@ from apps.tenancy.serializers import TenantSerializer
 from apps.iam.models import User
 from apps.iam.serializers import UserProfileSerializer
 from apps.providers.models import Provider
+from apps.pricing.models import PricingRule
+from apps.pricing.serializers import PricingRuleSerializer
 
 
 class TenantCreateSerializer(TenantSerializer):
@@ -38,4 +40,9 @@ class ProviderAdminSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        read_only_fields = ["id", "tenant", "created_at", "updated_at"]
+
+
+class PricingRuleAdminSerializer(PricingRuleSerializer):
+    class Meta(PricingRuleSerializer.Meta):
         read_only_fields = ["id", "tenant", "created_at", "updated_at"]
