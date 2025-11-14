@@ -1,3 +1,4 @@
+backend/apps/bookings/services.py
 import uuid
 from datetime import timedelta
 from typing import List, Dict
@@ -98,6 +99,21 @@ def create_booking(
                 seat_number=seat_num,
             )
 
+    # Fire booking.created event
+    enqueue_event(
+        tenant=tenant,
+        event_type="booking.created",
+        payload={
+            "booking_id": str(booking.id),
+            "tenant_id": str(tenant.id),
+            "provider_id": str(provider.id),
+            "trip_id": str(trip.id),
+            "seats_count": new_seats,
+            "total_amount": booking.total_amount,
+            "currency": booking.currency,
+        },
+    )
+
     return booking, per_passenger_amount
 
 
@@ -129,10 +145,11 @@ def confirm_booking_and_issue_tickets(booking: Booking):
             timezone.datetime.combine(trip.service_date, trip.arrival_time)
         )
 
+        issued_ticket_ids = []
         for passenger in booking.passengers.all():
             ticket_code = f"TKT-{booking.id.hex[:8]}-{uuid.uuid4().hex[:6]}".upper()
             qr_payload = f"{ticket_code}|booking={booking.id}|passenger={passenger.id}"
-            Ticket.objects.create(
+            ticket = Ticket.objects.create(
                 tenant=booking.tenant,
                 provider=booking.provider,
                 booking=booking,
@@ -142,6 +159,20 @@ def confirm_booking_and_issue_tickets(booking: Booking):
                 valid_from=valid_from,
                 valid_until=valid_until,
             )
+            issued_ticket_ids.append(str(ticket.id))
+
+        # Fire ticket.issued event
+        enqueue_event(
+            tenant=booking.tenant,
+            event_type="ticket.issued",
+            payload={
+                "booking_id": str(booking.id),
+                "tenant_id": str(booking.tenant_id),
+                "provider_id": str(booking.provider_id),
+                "trip_id": str(trip.id),
+                "ticket_ids": issued_ticket_ids,
+            },
+        )
 
     return booking
 
@@ -168,6 +199,21 @@ def cancel_booking(booking: Booking, reason: str = "") -> Dict:
     if previous_status == "PENDING_PAYMENT":
         refund_amount = booking.total_amount
 
+    # Fire booking.cancelled event
+    enqueue_event(
+        tenant=booking.tenant,
+        event_type="booking.cancelled",
+        payload={
+            "booking_id": str(booking.id),
+            "tenant_id": str(booking.tenant_id),
+            "provider_id": str(booking.provider_id),
+            "previous_status": previous_status,
+            "refund_amount": refund_amount,
+            "currency": booking.currency,
+            "reason": reason,
+        },
+    )
+
     return {
         "booking_id": str(booking.id),
         "previous_status": previous_status,
@@ -180,6 +226,3 @@ def cancel_booking(booking: Booking, reason: str = "") -> Dict:
         },
         "reason": reason,
     }
-
-
-
