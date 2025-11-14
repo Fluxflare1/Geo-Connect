@@ -7,12 +7,14 @@ from apps.tenancy.models import Tenant
 from apps.iam.models import User
 from apps.iam.permissions import IsPlatformSuperAdmin, IsTenantAdmin
 from apps.providers.models import Provider
+from apps.pricing.models import PricingRule
 
 from .serializers import (
     TenantCreateSerializer,
     TenantSerializer,
     UserAdminSerializer,
     ProviderAdminSerializer,
+    PricingRuleAdminSerializer,
 )
 
 
@@ -148,3 +150,31 @@ class ProviderDetailView(generics.RetrieveUpdateAPIView):
         if user.role != "PLATFORM_SUPER_ADMIN":
             qs = qs.filter(tenant=tenant)
         return qs
+
+
+class PricingRuleListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+    serializer_class = PricingRuleAdminSerializer
+
+    def get_queryset(self):
+        tenant = self.request.tenant
+        qs = PricingRule.objects.filter(tenant=tenant)
+        provider_id = self.request.query_params.get("provider_id")
+        if provider_id:
+            qs = qs.filter(provider_id=provider_id)
+        mode = self.request.query_params.get("mode")
+        if mode:
+            qs = qs.filter(mode=mode)
+        return qs.order_by("priority", "name")
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.tenant)
+
+
+class PricingRuleDetailView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+    serializer_class = PricingRuleAdminSerializer
+    lookup_url_kwarg = "rule_id"
+
+    def get_queryset(self):
+        return PricingRule.objects.filter(tenant=self.request.tenant)
