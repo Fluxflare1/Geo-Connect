@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 
 from django.utils import timezone
 
-from apps.catalog.models import Trip
+from apps.catalog.models import Trip, RouteStop
 from .models import PricingRule
 
 
@@ -142,3 +142,35 @@ def calculate_fare_for_trip(
         "components": components,
         "distance_km": distance_km,
     }
+
+
+def calculate_fare_for_trip_from_route(trip: Trip) -> Dict:
+    """
+    Helper for booking: uses first/last stops of the route as origin/destination.
+    This avoids trusting any client-side price and keeps pricing centralized.
+    """
+    route_stops = (
+        RouteStop.objects.select_related("stop")
+        .filter(route=trip.route)
+        .order_by("sequence_index")
+    )
+    if not route_stops.exists():
+        # fallback if route stops are missing – distance 0, simple base fare
+        return {
+            "amount": 0,
+            "currency": "NGN",
+            "components": [{"type": "BASE_FARE", "amount": 0}],
+            "distance_km": 0.0,
+        }
+
+    first = route_stops.first().stop
+    last = route_stops.last().stop
+
+    return calculate_fare_for_trip(
+        trip=trip,
+        origin_lat=first.lat,
+        origin_lng=first.lng,
+        dest_lat=last.lat,
+        dest_lng=last.lng,
+        mode=trip.route.mode,
+    )
