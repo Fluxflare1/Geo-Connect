@@ -1,3 +1,5 @@
+backend/apps/trips/views.py
+
 from datetime import datetime
 from typing import Optional
 
@@ -10,7 +12,6 @@ from rest_framework.response import Response
 
 from apps.catalog.models import Trip, RouteStop
 from apps.pricing.services import calculate_fare_for_trip
-
 from apps.realtime.models import TripStatus, TripInventory
 
 
@@ -124,10 +125,31 @@ class TripSearchView(generics.GenericAPIView):
         qs = qs.order_by("departure_time")[offset : offset + limit]
 
         trips_data = []
+
+        # Preload inventory/status into dicts to avoid N+1
+        trip_ids = [t.id for t in qs]
+
+        inv_map = {
+            inv.trip_id: inv
+            for inv in TripInventory.objects.filter(
+                tenant=tenant,
+                trip_id__in=trip_ids,
+                service_date=service_date,
+            )
+        }
+
+        status_map = {
+            s.trip_id: s
+            for s in TripStatus.objects.filter(
+                tenant=tenant,
+                trip_id__in=trip_ids,
+            )
+        }
+
         for trip in qs:
-            segments = self._build_segments_for_trip(trip)
+            segments = self._build_segments_for_trip(trip, status_map.get(trip.id))
             if not segments:
-                continue  # skip malformed routes
+                continue
 
             fare_info = calculate_fare_for_trip(
                 trip=trip,
@@ -137,6 +159,14 @@ class TripSearchView(generics.GenericAPIView):
                 dest_lng=dest_lng,
                 mode=trip.route.mode,
             )
+
+            inv = inv_map.get(trip.id)
+            if inv:
+                seats_total = inv.seats_total
+                seats_available = inv.seats_available
+            else:
+                seats_total = trip.vehicle_capacity
+                seats_available = trip.vehicle_capacity  # until seat accounting is wired fully
 
             trips_data.append(
                 {
@@ -153,9 +183,8 @@ class TripSearchView(generics.GenericAPIView):
                         "components": fare_info["components"],
                     },
                     "availability": {
-                        # real-time seats will come later (Phase 5)
-                        "seats_total": trip.vehicle_capacity,
-                        "seats_available": trip.vehicle_capacity,  # placeholder until inventory integration
+                        "seats_total": seats_total,
+                        "seats_available": seats_available,
                     },
                 }
             )
@@ -172,7 +201,9 @@ class TripSearchView(generics.GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
-    def _build_segments_for_trip(self, trip) -> Optional[list]:
+    def _build_segments_for_trip(self, trip, trip_status: TripStatus | None) -> Optional[list]:
+        from apps.catalog.models import RouteStop
+
         route_stops = (
             RouteStop.objects.select_related("stop")
             .filter(route=trip.route)
@@ -186,6 +217,27 @@ class TripSearchView(generics.GenericAPIView):
 
         departure_dt = datetime.combine(trip.service_date, trip.departure_time)
         arrival_dt = datetime.combine(trip.service_date, trip.arrival_time)
+
+        realtime_status = {
+            "status": "ON_TIME",
+            "delay_minutes": 0,
+        }
+        if trip_status:
+            if trip_status.status == "DELAYED":
+                realtime_status = {
+                    "status": "DELAYED",
+                    "delay_minutes": trip_status.delay_minutes,
+                }
+            elif trip_status.status == "CANCELLED":
+                realtime_status = {
+                    "status": "CANCELLED",
+                    "delay_minutes": trip_status.delay_minutes,
+                }
+            else:
+                realtime_status = {
+                    "status": trip_status.status,
+                    "delay_minutes": trip_status.delay_minutes,
+                }
 
         return [
             {
@@ -205,10 +257,7 @@ class TripSearchView(generics.GenericAPIView):
                 "departure_time": departure_dt.isoformat() + "Z",
                 "arrival_time": arrival_dt.isoformat() + "Z",
                 "vehicle_type": trip.vehicle_type or "",
-                "real_time_status": {
-                    "delay_minutes": 0,
-                    "status": "ON_TIME",
-                },
+                "real_time_status": realtime_status,
             }
         ]
 
