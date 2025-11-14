@@ -18,12 +18,16 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
+    "django.contrib.postgres",  # add this
+
     "rest_framework",
     "rest_framework.authtoken",
 
     "apps.tenancy",
     "apps.iam",
     "apps.admin_api",
+    "apps.providers",   # new
+    "apps.catalog",     # new
 ]
 
 AUTH_USER_MODEL = "iam.User"
