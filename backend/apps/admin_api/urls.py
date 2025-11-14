@@ -5,6 +5,8 @@ from .views import (
     TenantStatusUpdateView,
     TenantUserListCreateView,
     TenantUserDetailView,
+    ProviderListCreateView,
+    ProviderDetailView,
 )
 
 urlpatterns = [
@@ -16,4 +18,8 @@ urlpatterns = [
     # Users within a tenant (tenant admin)
     path("users", TenantUserListCreateView.as_view(), name="admin-users-list-create"),
     path("users/<uuid:user_id>", TenantUserDetailView.as_view(), name="admin-users-detail"),
+
+    # Providers
+    path("providers", ProviderListCreateView.as_view(), name="admin-providers-list-create"),
+    path("providers/<uuid:provider_id>", ProviderDetailView.as_view(), name="admin-providers-detail"),
 ]
