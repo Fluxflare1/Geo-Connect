@@ -13,4 +13,11 @@ urlpatterns = [
 
     # Admin APIs
     path("api/v1/admin/", include("apps.admin_api.urls")),
+
+    # Provider profile
+    path("api/v1/provider/", include("apps.providers.urls")),
+
+    # Provider bulk + catalog endpoints
+    path("api/v1/provider/", include("apps.catalog.urls")),  # stops/routes/trips bulk
+    path("api/v1/", include("apps.catalog.urls")),           # catalog/stops, routes, trips
 ]
