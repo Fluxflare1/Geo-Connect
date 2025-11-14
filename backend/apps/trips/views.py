@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from apps.catalog.models import Trip, RouteStop
 from apps.pricing.services import calculate_fare_for_trip
 
+from apps.realtime.models import TripStatus, TripInventory
+
 
 class TripSearchView(generics.GenericAPIView):
     """
