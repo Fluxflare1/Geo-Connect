@@ -10,6 +10,7 @@ DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -18,7 +19,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    "django.contrib.postgres",  # add this
+    "django.contrib.postgres",
 
     "rest_framework",
     "rest_framework.authtoken",
@@ -26,8 +27,10 @@ INSTALLED_APPS = [
     "apps.tenancy",
     "apps.iam",
     "apps.admin_api",
-    "apps.providers",   # new
-    "apps.catalog",     # new
+    "apps.providers",
+    "apps.catalog",
+    "apps.pricing",   # NEW
+    "apps.trips",     # NEW
 ]
 
 AUTH_USER_MODEL = "iam.User"
