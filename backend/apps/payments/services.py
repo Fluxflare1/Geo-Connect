@@ -46,3 +46,22 @@ def create_payment_for_booking(request, booking: Booking, provider_code: str) ->
         "callback_url": callback_url,
         "status": payment.status,
     }
+
+
+def mark_payment_success(payment: PaymentTransaction, payload: Dict):
+    if payment.status == "SUCCESS":
+        # idempotent
+        return payment
+    payment.status = "SUCCESS"
+    payment.raw_payload = payload
+    payment.save(update_fields=["status", "raw_payload", "updated_at"])
+    return payment
+
+
+def mark_payment_failed(payment: PaymentTransaction, payload: Dict):
+    if payment.status in ["FAILED", "REFUNDED"]:
+        return payment
+    payment.status = "FAILED"
+    payment.raw_payload = payload
+    payment.save(update_fields=["status", "raw_payload", "updated_at"])
+    return payment
