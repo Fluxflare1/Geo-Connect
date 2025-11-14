@@ -18,6 +18,9 @@ urlpatterns = [
     path("api/v1/provider/", include("apps.providers.urls")),
 
     # Provider bulk + catalog endpoints
-    path("api/v1/provider/", include("apps.catalog.urls")),  # stops/routes/trips bulk
-    path("api/v1/", include("apps.catalog.urls")),           # catalog/stops, routes, trips
+    path("api/v1/provider/", include("apps.catalog.urls")),
+    path("api/v1/", include("apps.catalog.urls")),
+
+    # Trip search
+    path("api/v1/", include("apps.trips.urls")),
 ]
