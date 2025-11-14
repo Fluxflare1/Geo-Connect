@@ -6,7 +6,14 @@ from rest_framework.permissions import IsAuthenticated
 from apps.tenancy.models import Tenant
 from apps.iam.models import User
 from apps.iam.permissions import IsPlatformSuperAdmin, IsTenantAdmin
-from .serializers import TenantCreateSerializer, TenantSerializer, UserAdminSerializer
+from apps.providers.models import Provider
+
+from .serializers import (
+    TenantCreateSerializer,
+    TenantSerializer,
+    UserAdminSerializer,
+    ProviderAdminSerializer,
+)
 
 
 class TenantListCreateView(generics.ListCreateAPIView):
@@ -44,10 +51,13 @@ class TenantDetailView(generics.RetrieveUpdateAPIView):
 class TenantStatusUpdateView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsPlatformSuperAdmin]
     lookup_url_kwarg = "tenant_id"
-    serializer_class = TenantSerializer
+    queryset = Tenant.objects.all()
+
+    def get_object(self):
+        return generics.get_object_or_404(self.get_queryset(), id=self.kwargs[self.lookup_url_kwarg])
 
     def post(self, request, *args, **kwargs):
-        tenant = Tenant.objects.get(id=kwargs[self.lookup_url_kwarg])
+        tenant = self.get_object()
         previous_status = tenant.status
         new_status = request.data.get("status")
         reason = request.data.get("reason", "")
@@ -94,3 +104,47 @@ class TenantUserDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return User.objects.filter(tenant=self.request.tenant)
+
+
+class ProviderListCreateView(generics.ListCreateAPIView):
+    """
+    Tenant admin: list/create providers for their tenant.
+    Platform super admin: can list across tenants (optionally).
+    """
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+    serializer_class = ProviderAdminSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        tenant = self.request.tenant
+        qs = Provider.objects.all()
+        if user.role != "PLATFORM_SUPER_ADMIN":
+            qs = qs.filter(tenant=tenant)
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        mode = self.request.query_params.get("mode")
+        if mode:
+            qs = qs.filter(modes__contains=[mode])
+        return qs.order_by("name")
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        tenant = self.request.tenant
+        tenant_for_provider = tenant
+        # platform super admin may create for any tenant in the future
+        serializer.save(tenant=tenant_for_provider)
+
+
+class ProviderDetailView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+    serializer_class = ProviderAdminSerializer
+    lookup_url_kwarg = "provider_id"
+
+    def get_queryset(self):
+        user = self.request.user
+        tenant = self.request.tenant
+        qs = Provider.objects.all()
+        if user.role != "PLATFORM_SUPER_ADMIN":
+            qs = qs.filter(tenant=tenant)
+        return qs
