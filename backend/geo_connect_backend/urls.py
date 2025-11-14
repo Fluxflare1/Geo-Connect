@@ -13,6 +13,7 @@ urlpatterns = [
 
     # Admin APIs
     path("api/v1/admin/", include("apps.admin_api.urls")),
+    path("api/v1/admin/", include("apps.notifications.urls")),  # admin webhook management
 
     # Provider profile
     path("api/v1/provider/", include("apps.providers.urls")),
@@ -20,6 +21,9 @@ urlpatterns = [
     # Provider bulk + catalog endpoints
     path("api/v1/provider/", include("apps.catalog.urls")),
     path("api/v1/", include("apps.catalog.urls")),
+
+    # Provider real-time feed
+    path("api/v1/provider/", include("apps.realtime.urls")),
 
     # Trip search
     path("api/v1/", include("apps.trips.urls")),
