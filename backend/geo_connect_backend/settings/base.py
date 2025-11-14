@@ -33,8 +33,11 @@ INSTALLED_APPS = [
     "apps.trips",
     "apps.bookings",
     "apps.payments",
-    "apps.realtime",       # NEW
-    "apps.notifications",  # NEW
+    "apps.realtime",
+    "apps.notifications",
+    "apps.support",      # NEW
+    "apps.analytics",    # NEW
+    "apps.settlement",   # NEW
 ]
 
 AUTH_USER_MODEL = "iam.User"
