@@ -31,8 +31,10 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.pricing",
     "apps.trips",
-    "apps.bookings",   # NEW
-    "apps.payments",   # NEW
+    "apps.bookings",
+    "apps.payments",
+    "apps.realtime",       # NEW
+    "apps.notifications",  # NEW
 ]
 
 AUTH_USER_MODEL = "iam.User"
