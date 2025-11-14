@@ -23,4 +23,10 @@ urlpatterns = [
 
     # Trip search
     path("api/v1/", include("apps.trips.urls")),
+
+    # Bookings
+    path("api/v1/", include("apps.bookings.urls")),
+
+    # Payments webhooks
+    path("api/v1/", include("apps.payments.urls")),
 ]
