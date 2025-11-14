@@ -56,3 +56,86 @@ class Booking(models.Model):
         if self.status == "PENDING_PAYMENT" and self.reservation_expires_at:
             return self.reservation_expires_at > timezone.now()
         return True
+
+
+class BookingPassenger(models.Model):
+    PASSENGER_TYPES = [
+        ("ADULT", "Adult"),
+        ("CHILD", "Child"),
+        ("SENIOR", "Senior"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="passengers")
+
+    passenger_type = models.CharField(max_length=16, choices=PASSENGER_TYPES, default="ADULT")
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "booking_passenger"
+
+    def __str__(self) -> str:
+        return f"{self.first_name} {self.last_name} ({self.passenger_type})"
+
+
+
+class BookingSeat(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="seats")
+    passenger = models.ForeignKey(
+        BookingPassenger, on_delete=models.CASCADE, related_name="seats"
+    )
+    seat_number = models.CharField(max_length=16, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "booking_seat"
+        indexes = [
+            models.Index(fields=["booking", "seat_number"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.booking_id} - {self.seat_number}"
+
+
+
+class Ticket(models.Model):
+    STATUS_CHOICES = [
+        ("ISSUED", "Issued"),
+        ("CANCELLED", "Cancelled"),
+        ("USED", "Used"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="tickets")
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="tickets")
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="tickets")
+    passenger = models.ForeignKey(
+        BookingPassenger, on_delete=models.CASCADE, related_name="tickets"
+    )
+
+    ticket_code = models.CharField(max_length=64, unique=True)
+    qr_payload = models.CharField(max_length=512, blank=True)
+
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="ISSUED")
+    valid_from = models.DateTimeField(null=True, blank=True)
+    valid_until = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ticket"
+        indexes = [
+            models.Index(fields=["tenant", "provider"]),
+            models.Index(fields=["booking"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Ticket {self.ticket_code} ({self.status})"
+
