@@ -29,8 +29,10 @@ INSTALLED_APPS = [
     "apps.admin_api",
     "apps.providers",
     "apps.catalog",
-    "apps.pricing",   # NEW
-    "apps.trips",     # NEW
+    "apps.pricing",
+    "apps.trips",
+    "apps.bookings",   # NEW
+    "apps.payments",   # NEW
 ]
 
 AUTH_USER_MODEL = "iam.User"
