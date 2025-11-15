@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
+import { useRequireAuth } from "@/lib/auth-context";
 import type { SupportTicket } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +20,16 @@ function formatDateTime(iso: string) {
 }
 
 export default function SupportPage() {
+  const { checking } = useRequireAuth();
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600">
+        Checking your session…
+      </div>
+    );
+  }
+
   const router = useRouter();
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -48,8 +59,10 @@ export default function SupportPage() {
       }
     }
 
-    loadTickets();
-  }, []);
+    if (!checking) {
+      loadTickets();
+    }
+  }, [checking]);
 
   async function handleCreateTicket(e: React.FormEvent) {
     e.preventDefault();
