@@ -105,3 +105,48 @@ export interface BookingCreateResponse {
   booking: Booking;
   payment_session: PaymentSession;
 }
+
+
+
+export interface SupportMessage {
+  id: string;
+  sender_type: "CUSTOMER" | "AGENT" | "SYSTEM";
+  sender_name?: string;
+  body: string;
+  internal_only: boolean;
+  created_at: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  subject: string;
+  category: "BOOKING" | "PAYMENT" | "TRIP" | "ACCOUNT" | "OTHER";
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  booking_id?: string | null;
+  provider_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  last_activity_at: string;
+  last_message?: {
+    sender_type: string;
+    body: string;
+    created_at: string;
+  } | null;
+}
+
+export interface SupportTicketDetail {
+  id: string;
+  subject: string;
+  category: SupportTicket["category"];
+  status: SupportTicket["status"];
+  priority: SupportTicket["priority"];
+  booking_id?: string | null;
+  provider_id?: string | null;
+  customer_user_id?: string | null;
+  assigned_to_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  last_activity_at: string;
+  messages: SupportMessage[];
+}
