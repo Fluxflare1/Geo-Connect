@@ -54,6 +54,18 @@ class PaymentWebhookView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Use PSP reference as natural idempotency key for this webhook
+        idempotency_key = f"{provider}:{reference}:{event}"
+        try:
+            register_idempotency_key(
+                key=idempotency_key,
+                endpoint_slug="payments.webhook",
+                ttl_seconds=3600,
+            )
+        except IdempotencyError:
+            # Already processed – acknowledge to PSP without re-changing booking state
+            return Response({"received": True, "idempotent": True}, status=status.HTTP_200_OK)
+
         try:
             payment = PaymentTransaction.objects.select_related("booking", "tenant").get(
                 psp_reference=reference
