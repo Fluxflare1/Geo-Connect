@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 
@@ -24,6 +25,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
 
+    "apps.core",          # NEW: shared infra (idempotency, middleware helpers)
     "apps.tenancy",
     "apps.iam",
     "apps.admin_api",
@@ -35,9 +37,10 @@ INSTALLED_APPS = [
     "apps.payments",
     "apps.realtime",
     "apps.notifications",
-    "apps.support",      # NEW
-    "apps.analytics",    # NEW
-    "apps.settlement",   # NEW
+    "apps.support",
+    "apps.analytics",
+    "apps.settlement",
+    "apps.observability",  # NEW: health/ready endpoints
 ]
 
 AUTH_USER_MODEL = "iam.User"
@@ -50,7 +53,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "apps.tenancy.middleware.TenantMiddleware",
+
+    "apps.core.middleware.RequestIdMiddleware",   # NEW
+    "apps.tenancy.middleware.TenantMiddleware",   # already there in earlier phases
 ]
 
 ROOT_URLCONF = "geo_connect_backend.urls"
@@ -129,4 +134,49 @@ SIMPLE_JWT = {
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "format": (
+                '{"timestamp":"%(asctime)s",'
+                '"level":"%(levelname)s",'
+                '"logger":"%(name)s",'
+                '"request_id":"%(request_id)s",'
+                '"message":"%(message)s"}'
+            ),
+        },
+        "console": {
+            "format": "[%(asctime)s] [%(levelname)s] [%(name)s] [%(request_id)s] %(message)s",
+        },
+    },
+    "filters": {
+        "request_id": {
+            "()": "apps.core.logging.RequestIdFilter",
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": sys.stdout,
+            "filters": ["request_id"],
+            "formatter": "console",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+    },
 }
