@@ -12,6 +12,8 @@ from .serializers import (
 from .services import create_booking, cancel_booking
 from apps.payments.services import create_payment_for_booking
 from apps.iam.permissions import IsTenantAdmin
+from apps.core.services import register_idempotency_key, IdempotencyError
+
 
 
 class BookingCreateView(generics.GenericAPIView):
