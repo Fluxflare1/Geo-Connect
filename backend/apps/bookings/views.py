@@ -15,7 +15,6 @@ from apps.iam.permissions import IsTenantAdmin
 from apps.core.services import register_idempotency_key, IdempotencyError
 
 
-
 class BookingCreateView(generics.GenericAPIView):
     """
     POST /api/v1/bookings
@@ -31,6 +30,35 @@ class BookingCreateView(generics.GenericAPIView):
             return Response(
                 {"error": {"code": "TENANT_REQUIRED", "message": "Tenant context required."}},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        idempotency_key = request.headers.get("Idempotency-Key")
+        if not idempotency_key:
+            return Response(
+                {
+                    "error": {
+                        "code": "IDEMPOTENCY_KEY_REQUIRED",
+                        "message": "Idempotency-Key header is required for booking creation.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            register_idempotency_key(
+                key=idempotency_key,
+                endpoint_slug="bookings.create",
+                ttl_seconds=900,
+            )
+        except IdempotencyError:
+            return Response(
+                {
+                    "error": {
+                        "code": "IDEMPOTENT_REPLAY",
+                        "message": "This booking request has already been processed.",
+                    }
+                },
+                status=status.HTTP_409_CONFLICT,
             )
 
         serializer = self.get_serializer(data=request.data)
