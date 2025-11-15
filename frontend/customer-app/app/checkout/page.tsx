@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
+import { useRequireAuth } from "@/lib/auth-context";
 import type {
   TripSearchResult,
   BookingCreateResponse
@@ -41,6 +42,16 @@ interface PassengerForm {
 }
 
 export default function CheckoutPage() {
+  const { checking } = useRequireAuth();
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600">
+        Checking your session…
+      </div>
+    );
+  }
+
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -89,8 +100,10 @@ export default function CheckoutPage() {
       }
     }
 
-    loadTrip();
-  }, [tripId, searchParams, router]);
+    if (!checking) {
+      loadTrip();
+    }
+  }, [tripId, searchParams, router, checking]);
 
   function updatePassenger(
     index: number,
