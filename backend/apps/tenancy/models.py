@@ -17,6 +17,12 @@ class Tenant(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
     region = models.CharField(max_length=10, blank=True)
     default_currency = models.CharField(max_length=10, default="NGN")
+    
+    region_code = models.CharField(
+        max_length=16,
+        default="africa-west-1",
+        help_text="Logical region for this tenant (e.g. africa-west-1, eu-central-1).",
+    )
 
     branding = models.JSONField(default=dict, blank=True)
     config = models.JSONField(default=dict, blank=True)
