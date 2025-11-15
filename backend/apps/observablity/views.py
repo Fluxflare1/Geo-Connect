@@ -31,3 +31,37 @@ class HealthCheckView(APIView):
             {"status": "ok", "checks": {"database": "up"}},
             status=status.HTTP_200_OK,
         )
+
+
+class ReadinessCheckView(APIView):
+    """
+    GET /api/v1/readiness
+
+    Slightly heavier – you can extend to check:
+      - cache
+      - message broker
+      - external dependencies
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        db_ok = True
+        try:
+            connections["default"].cursor()
+        except OperationalError:
+            db_ok = False
+
+        checks = {
+            "database": "up" if db_ok else "down",
+        }
+
+        status_code = status.HTTP_200_OK if db_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+        overall = "ready" if db_ok else "not_ready"
+
+        return Response(
+            {
+                "status": overall,
+                "checks": checks,
+            },
+            status=status_code,
+        )
