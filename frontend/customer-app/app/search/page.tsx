@@ -49,8 +49,13 @@ export default function SearchPage() {
       }
     }
 
-    // basic validation: if required params missing, send back to home
-    const required = ["origin_lat", "origin_lng", "dest_lat", "dest_lng", "departure_time"];
+    const required = [
+      "origin_lat",
+      "origin_lng",
+      "dest_lat",
+      "dest_lng",
+      "departure_time"
+    ];
     const missing = required.filter(key => !searchParams.get(key));
     if (missing.length > 0) {
       router.push("/");
@@ -137,9 +142,12 @@ export default function SearchPage() {
                 </div>
                 <Button
                   variant="primary"
-                  onClick={() =>
-                    router.push(`/checkout?tripId=${encodeURIComponent(trip.id)}`)
-                  }
+                  onClick={() => {
+                    const qs = searchParams.toString();
+                    const base = `/checkout?tripId=${encodeURIComponent(trip.id)}`;
+                    const url = qs ? `${base}&${qs}` : base;
+                    router.push(url);
+                  }}
                 >
                   Select trip
                 </Button>
