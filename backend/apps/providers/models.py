@@ -28,6 +28,12 @@ class Provider(models.Model):
 
     supports_real_time = models.BooleanField(default=False)
     supports_seat_selection = models.BooleanField(default=False)
+    
+    region_code = models.CharField(
+        max_length=16,
+        blank=True,
+        help_text="Overrides tenant region if provider is region-specific.",
+    )
 
     branding = models.JSONField(default=dict, blank=True)
     integration = models.JSONField(default=dict, blank=True)
