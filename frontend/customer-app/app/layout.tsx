@@ -1,6 +1,7 @@
 import "../styles/globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
+import AppNav from "@/components/layout/app-nav";
 
 export const metadata: Metadata = {
   title: "Geo-Connect – Customer",
@@ -20,11 +21,7 @@ export default function RootLayout({
             <Link href="/" className="flex items-center gap-2">
               <span className="text-xl font-semibold">Geo-Connect</span>
             </Link>
-            <nav className="flex items-center gap-4 text-sm">
-              <Link href="/bookings">My bookings</Link>
-              <Link href="/support">Support</Link>
-              <Link href="/login">Login</Link>
-            </nav>
+            <AppNav />
           </div>
         </header>
         <main className="container py-6">{children}</main>
