@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { loginWithEmailPassword, getCurrentUser } from "@/lib/auth";
@@ -10,12 +10,18 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
 
-  const existingUser = getCurrentUser();
+  const existingUser = typeof window !== "undefined" ? getCurrentUser() : null;
 
   const [email, setEmail] = useState(existingUser?.email || "");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (existingUser) {
+      router.replace(redirectTo);
+    }
+  }, [existingUser, redirectTo, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,6 +35,14 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (existingUser) {
+    return (
+      <div className="max-w-md mx-auto mt-10 bg-white rounded-lg shadow-sm p-6 text-sm text-gray-700">
+        You are already signed in. Redirecting…
+      </div>
+    );
   }
 
   return (
