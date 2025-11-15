@@ -108,6 +108,8 @@ export interface BookingCreateResponse {
 
 
 
+
+
 export interface SupportMessage {
   id: string;
   sender_type: "CUSTOMER" | "AGENT" | "SYSTEM";
@@ -149,4 +151,19 @@ export interface SupportTicketDetail {
   updated_at: string;
   last_activity_at: string;
   messages: SupportMessage[];
+}
+
+
+export interface User {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+}
+
+export interface LoginResponse {
+  access: string;
+  refresh: string;
+  user: User;
 }
