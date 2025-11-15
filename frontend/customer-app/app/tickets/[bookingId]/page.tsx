@@ -3,11 +3,22 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
+import { useRequireAuth } from "@/lib/auth-context";
 import type { Booking, Ticket } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { QRCode } from "qrcode.react";
 
 export default function TicketsPage() {
+  const { checking } = useRequireAuth();
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600">
+        Checking your session…
+      </div>
+    );
+  }
+
   const params = useParams<{ bookingId: string }>();
   const router = useRouter();
   const bookingId = params.bookingId;
@@ -35,8 +46,10 @@ export default function TicketsPage() {
       return;
     }
 
-    loadBooking();
-  }, [bookingId, router]);
+    if (!checking) {
+      loadBooking();
+    }
+  }, [bookingId, router, checking]);
 
   return (
     <div className="mt-6 max-w-4xl mx-auto">
