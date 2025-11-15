@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
 import type { Booking } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { useRequireAuth } from "@/lib/use-require-auth";
 
 function formatDateTime(iso: string | null) {
   if (!iso) return "-";
@@ -14,11 +15,15 @@ function formatDateTime(iso: string | null) {
 
 export default function BookingsPage() {
   const router = useRouter();
+  const { checking } = useRequireAuth();
+
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (checking) return;
+
     async function loadBookings() {
       setLoading(true);
       setError(null);
@@ -33,7 +38,15 @@ export default function BookingsPage() {
     }
 
     loadBookings();
-  }, []);
+  }, [checking]);
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600">
+        Checking your session…
+      </div>
+    );
+  }
 
   return (
     <div className="mt-6">
