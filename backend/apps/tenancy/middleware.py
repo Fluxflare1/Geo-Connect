@@ -6,16 +6,16 @@ from .models import Tenant
 
 class TenantMiddleware(MiddlewareMixin):
     """
-    Resolve tenant from:
-      - X-Tenant-ID header, or
-      - subdomain (e.g. tenant.slug.geo-connect.com)
+    Resolves tenant from X-Tenant-ID header and exposes request.tenant and request.region_code.
 
-    Public endpoints (like /auth/login) can work with or without tenant,
-    but **admin & business APIs** will require tenant explicitly.
+    In multi-region deployments you can:
+      - Route traffic by DNS / load balancer
+      - Still validate that X-Region header matches tenant.region_code
     """
 
     def process_request(self, request):
         request.tenant = None
+        request.region_code = None
 
         header_tenant_id = request.headers.get("X-Tenant-ID")
         host = request.get_host().split(":")[0]  # remove port
@@ -44,6 +44,8 @@ class TenantMiddleware(MiddlewareMixin):
                 tenant = None
 
         request.tenant = tenant
+        if tenant:
+            request.region_code = tenant.region_code
 
         # For admin-level platform-wide endpoints, we allow tenant to be None.
         # For others, views can enforce tenant requirement via permissions.
