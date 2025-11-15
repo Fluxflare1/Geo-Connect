@@ -3,12 +3,23 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
+import { useRequireAuth } from "@/lib/auth-context";
 import type { Booking, PaymentSession } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 
 interface StoredPaymentSession extends PaymentSession {}
 
 export default function PaymentPage() {
+  const { checking } = useRequireAuth();
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600">
+        Checking your session…
+      </div>
+    );
+  }
+
   const params = useParams<{ reference: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
