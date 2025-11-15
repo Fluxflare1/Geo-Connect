@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
+import { useRequireAuth } from "@/lib/auth-context";
 import type { SupportTicketDetail, SupportMessage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +13,16 @@ function formatDateTime(iso: string) {
 }
 
 export default function SupportTicketDetailPage() {
+  const { checking } = useRequireAuth();
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600">
+        Checking your session…
+      </div>
+    );
+  }
+
   const params = useParams<{ ticketId: string }>();
   const router = useRouter();
 
@@ -47,8 +58,10 @@ export default function SupportTicketDetailPage() {
       return;
     }
 
-    loadTicket();
-  }, [ticketId, router]);
+    if (!checking) {
+      loadTicket();
+    }
+  }, [ticketId, router, checking]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
