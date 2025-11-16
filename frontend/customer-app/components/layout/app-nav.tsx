@@ -29,6 +29,9 @@ export default function AppNav() {
 
       {!hydrated ? null : userEmail ? (
         <div className="flex items-center gap-3">
+          <Link href="/account" className="text-xs underline">
+            Account
+          </Link>
           <span className="text-xs text-gray-600 truncate max-w-[140px]">
             {userEmail}
           </span>
