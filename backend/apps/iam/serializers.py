@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User
@@ -62,7 +63,11 @@ class MeSerializer(serializers.ModelSerializer):
             "role",
             "permissions",
             "profile",
+            "first_name",
+            "last_name",
+            "phone_number",
         ]
+        read_only_fields = ["id", "tenant", "email"]  # keep email read-only for now
 
     def get_permissions(self, obj):
         # Simple mapping for now; you can expand later.
@@ -77,8 +82,47 @@ class MeSerializer(serializers.ModelSerializer):
         return {
             "first_name": obj.first_name,
             "last_name": obj.last_name,
-            "phone": None,
+            "phone": obj.phone_number,
             "preferred_language": "en",
             "country": None,
             "time_zone": "Africa/Lagos",
         }
+
+
+class MeUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "first_name",
+            "last_name",
+            "phone_number",
+        ]
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save(update_fields=list(validated_data.keys()))
+        return instance
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Old password is not correct.")
+        return value
+
+    def validate_new_password(self, value):
+        # Use Django's password validation settings
+        validate_password(value)
+        return value
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        new_password = self.validated_data["new_password"]
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+        return user
