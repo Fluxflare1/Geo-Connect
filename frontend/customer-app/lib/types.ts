@@ -106,10 +106,6 @@ export interface BookingCreateResponse {
   payment_session: PaymentSession;
 }
 
-
-
-
-
 export interface SupportMessage {
   id: string;
   sender_type: "CUSTOMER" | "AGENT" | "SYSTEM";
@@ -153,13 +149,13 @@ export interface SupportTicketDetail {
   messages: SupportMessage[];
 }
 
-
 export interface User {
   id: string;
   email: string;
   first_name: string;
   last_name: string;
   role: string;
+  phone_number?: string;
 }
 
 export interface LoginResponse {
