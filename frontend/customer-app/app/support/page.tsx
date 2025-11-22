@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
-import { useRequireAuth } from "@/lib/auth-context";
 import type { SupportTicket } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import { useRequireAuth } from "@/lib/use-require-auth";
 
 type Category = "BOOKING" | "PAYMENT" | "TRIP" | "ACCOUNT" | "OTHER";
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -20,17 +22,8 @@ function formatDateTime(iso: string) {
 }
 
 export default function SupportPage() {
-  const { checking } = useRequireAuth();
-
-  if (checking) {
-    return (
-      <div className="mt-6 text-sm text-gray-600">
-        Checking your session…
-      </div>
-    );
-  }
-
   const router = useRouter();
+  const { checking } = useRequireAuth();
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
@@ -44,8 +37,11 @@ export default function SupportPage() {
   const [message, setMessage] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    if (checking) return;
+
     async function loadTickets() {
       setLoadingTickets(true);
       setTicketsError(null);
@@ -59,15 +55,14 @@ export default function SupportPage() {
       }
     }
 
-    if (!checking) {
-      loadTickets();
-    }
+    loadTickets();
   }, [checking]);
 
   async function handleCreateTicket(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
     setCreateError(null);
+    setCreateSuccess(null);
 
     try {
       const payload: any = {
@@ -88,7 +83,6 @@ export default function SupportPage() {
         body: JSON.stringify(payload)
       });
 
-      // After creation, reload list & clear form
       const data = await apiFetch<TicketsResponse>("/support/tickets");
       setTickets(data.tickets || []);
 
@@ -99,7 +93,8 @@ export default function SupportPage() {
       setProviderId("");
       setMessage("");
 
-      // Navigate to new ticket
+      setCreateSuccess("Your ticket has been created. We will get back to you soon.");
+
       if (ticket && ticket.id) {
         router.push(`/support/${encodeURIComponent(ticket.id)}`);
       }
@@ -108,6 +103,15 @@ export default function SupportPage() {
     } finally {
       setCreating(false);
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600 flex items-center gap-2">
+        <Spinner size="sm" />
+        <span>Checking your session…</span>
+      </div>
+    );
   }
 
   return (
@@ -119,8 +123,18 @@ export default function SupportPage() {
         <h2 className="text-sm font-semibold mb-3">Open a new ticket</h2>
 
         {createError && (
-          <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-            {createError}
+          <div className="mb-3">
+            <Alert variant="error" title="Could not create ticket">
+              {createError}
+            </Alert>
+          </div>
+        )}
+
+        {createSuccess && (
+          <div className="mb-3">
+            <Alert variant="success" title="Ticket created">
+              {createSuccess}
+            </Alert>
           </div>
         )}
 
@@ -222,8 +236,10 @@ export default function SupportPage() {
               type="submit"
               variant="primary"
               disabled={creating}
+              className="flex items-center gap-2"
             >
-              {creating ? "Submitting…" : "Submit ticket"}
+              {creating && <Spinner size="sm" />}
+              <span>{creating ? "Submitting…" : "Submit ticket"}</span>
             </Button>
           </div>
         </form>
@@ -236,12 +252,17 @@ export default function SupportPage() {
         </div>
 
         {loadingTickets && (
-          <p className="text-sm text-gray-600">Loading tickets…</p>
+          <p className="text-sm text-gray-600 flex items-center gap-2">
+            <Spinner size="sm" />
+            <span>Loading tickets…</span>
+          </p>
         )}
 
         {ticketsError && (
-          <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-            {ticketsError}
+          <div className="mt-2">
+            <Alert variant="error" title="Could not load tickets">
+              {ticketsError}
+            </Alert>
           </div>
         )}
 
