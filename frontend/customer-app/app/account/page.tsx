@@ -5,6 +5,8 @@ import { useRequireAuth } from "@/lib/use-require-auth";
 import { fetchMe, updateProfile, changePassword, getCurrentUser } from "@/lib/auth";
 import type { User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function AccountPage() {
   const { user: initialUser, checking } = useRequireAuth();
@@ -29,7 +31,6 @@ export default function AccountPage() {
       setLoadingProfile(true);
       setProfileError(null);
       try {
-        // Prefer fresh /auth/me, fallback to local storage if needed
         const fresh = await fetchMe();
         setUser(fresh);
       } catch (err: any) {
@@ -75,7 +76,7 @@ export default function AccountPage() {
     setPasswordSaved(false);
 
     if (!oldPassword || !newPassword || !confirmPassword) {
-      setPasswordError("All fields are required.");
+      setPasswordError("All password fields are required.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -99,8 +100,9 @@ export default function AccountPage() {
 
   if (checking) {
     return (
-      <div className="mt-6 text-sm text-gray-600">
-        Checking your session…
+      <div className="mt-6 text-sm text-gray-600 flex items-center gap-2">
+        <Spinner size="sm" />
+        <span>Checking your session…</span>
       </div>
     );
   }
@@ -114,20 +116,25 @@ export default function AccountPage() {
         <h2 className="text-sm font-semibold mb-3">Profile</h2>
 
         {loadingProfile && (
-          <p className="text-xs text-gray-600 mb-2">
-            Loading profile…
-          </p>
+          <div className="mb-2 text-xs text-gray-600 flex items-center gap-2">
+            <Spinner size="sm" />
+            <span>Loading profile…</span>
+          </div>
         )}
 
         {profileError && (
-          <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-            {profileError}
+          <div className="mb-3">
+            <Alert variant="error" title="Profile error">
+              {profileError}
+            </Alert>
           </div>
         )}
 
         {profileSaved && (
-          <div className="mb-3 rounded-md bg-green-50 px-3 py-2 text-xs text-green-700">
-            Profile updated successfully.
+          <div className="mb-3">
+            <Alert variant="success" title="Profile updated">
+              Your profile information has been updated.
+            </Alert>
           </div>
         )}
 
@@ -155,9 +162,7 @@ export default function AccountPage() {
                   value={user.first_name || ""}
                   onChange={e =>
                     setUser(prev =>
-                      prev
-                        ? { ...prev, first_name: e.target.value }
-                        : prev
+                      prev ? { ...prev, first_name: e.target.value } : prev
                     )
                   }
                   className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -172,9 +177,7 @@ export default function AccountPage() {
                   value={user.last_name || ""}
                   onChange={e =>
                     setUser(prev =>
-                      prev
-                        ? { ...prev, last_name: e.target.value }
-                        : prev
+                      prev ? { ...prev, last_name: e.target.value } : prev
                     )
                   }
                   className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -191,9 +194,7 @@ export default function AccountPage() {
                 value={user.phone_number || ""}
                 onChange={e =>
                   setUser(prev =>
-                    prev
-                      ? { ...prev, phone_number: e.target.value }
-                      : prev
+                    prev ? { ...prev, phone_number: e.target.value } : prev
                   )
                 }
                 className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -205,8 +206,10 @@ export default function AccountPage() {
                 type="submit"
                 variant="primary"
                 disabled={savingProfile}
+                className="flex items-center gap-2"
               >
-                {savingProfile ? "Saving…" : "Save changes"}
+                {savingProfile && <Spinner size="sm" />}
+                <span>{savingProfile ? "Saving…" : "Save changes"}</span>
               </Button>
             </div>
           </form>
@@ -218,14 +221,18 @@ export default function AccountPage() {
         <h2 className="text-sm font-semibold mb-3">Change password</h2>
 
         {passwordError && (
-          <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-            {passwordError}
+          <div className="mb-3">
+            <Alert variant="error" title="Password error">
+              {passwordError}
+            </Alert>
           </div>
         )}
 
         {passwordSaved && (
-          <div className="mb-3 rounded-md bg-green-50 px-3 py-2 text-xs text-green-700">
-            Password updated successfully.
+          <div className="mb-3">
+            <Alert variant="success" title="Password updated">
+              Your password has been changed successfully.
+            </Alert>
           </div>
         )}
 
@@ -269,8 +276,10 @@ export default function AccountPage() {
               type="submit"
               variant="primary"
               disabled={changingPassword}
+              className="flex items-center gap-2"
             >
-              {changingPassword ? "Updating…" : "Update password"}
+              {changingPassword && <Spinner size="sm" />}
+              <span>{changingPassword ? "Updating…" : "Update password"}</span>
             </Button>
           </div>
         </form>
