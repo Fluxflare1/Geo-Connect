@@ -1,11 +1,13 @@
+from datetime import timedelta
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from catalog.models import Trip
-from tenancy.models import Tenant
+from apps.catalog.models import Trip
+from apps.tenancy.models import Tenant
 
 from .serializers import (
     TripSearchRequestSerializer,
@@ -18,40 +20,36 @@ from .services import search_trips
 def get_tenant_from_request(request) -> Tenant:
     """
     Simple, explicit tenant resolution using X-Tenant header.
-    You can later extend this to infer from domain, etc.
+
+    You can extend this later to infer from domain or JWT claims if needed.
     """
+    from rest_framework.exceptions import ValidationError
+
     tenant_slug = request.headers.get("X-Tenant")
     if not tenant_slug:
-        # For now we enforce header; you can relax/change this if you have a middleware.
-        from rest_framework.exceptions import ValidationError
-
         raise ValidationError("X-Tenant header is required.")
 
     try:
         return Tenant.objects.get(slug=tenant_slug)
     except Tenant.DoesNotExist:
-        from rest_framework.exceptions import ValidationError
-
         raise ValidationError("Invalid tenant in X-Tenant header.")
 
 
 class TripSearchView(APIView):
     """
     POST /api/v1/trips/search
-
-    Body validated by TripSearchRequestSerializer.
     """
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         tenant = get_tenant_from_request(request)
+
         serializer = TripSearchRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         result = search_trips(tenant=tenant, validated_data=serializer.validated_data)
 
-        # Transform TripSearchResult objects to dicts for serializer
         serialized_results = []
         for item in result["results"]:
             trip = item.trip
@@ -62,14 +60,14 @@ class TripSearchView(APIView):
 
             serialized_results.append(
                 {
-                    "trip_id": trip.trip_code,
+                    "trip_id": str(trip.id),
                     "provider": {
                         "id": provider.code,
                         "name": provider.name,
-                        "logo_url": provider.logo_url if hasattr(provider, "logo_url") else "",
+                        "logo_url": getattr(provider, "logo_url", "") or "",
                     },
-                    "mode": trip.mode,
-                    "product_type": trip.product_type,
+                    "mode": route.mode,
+                    "product_type": route.product_type,
                     "origin": {
                         "stop_id": origin.code,
                         "name": origin.name,
@@ -80,8 +78,8 @@ class TripSearchView(APIView):
                         "name": destination.name,
                         "city_code": destination.city.code if destination.city else "",
                     },
-                    "departure_time": trip.departure_time,
-                    "arrival_time": trip.arrival_time,
+                    "departure_time": trip.departure_datetime,
+                    "arrival_time": trip.arrival_datetime,
                     "duration_minutes": trip.duration_minutes,
                     "available_seats": trip.available_seats,
                     "price": {
@@ -98,7 +96,7 @@ class TripSearchView(APIView):
                     },
                     "tags": [],
                     "preview": {
-                        "vehicle_type": "",  # can be populated from route/vehicle data later
+                        "vehicle_type": trip.vehicle_type or "",
                         "route_label": f"{origin.name} → {destination.name}",
                         "badge": "",
                         "primary_color": "",
@@ -134,8 +132,8 @@ class TripSummaryView(APIView):
                 "provider",
             ),
             tenant=tenant,
-            trip_code=trip_id,
-            is_active=True,
+            id=trip_id,
+            active=True,
         )
 
         route = trip.route
@@ -143,15 +141,17 @@ class TripSummaryView(APIView):
         destination = route.destination
         provider = trip.provider
 
+        latest_deadline = trip.departure_datetime - timedelta(days=1)
+
         payload = {
-            "trip_id": trip.trip_code,
+            "trip_id": str(trip.id),
             "provider": {
                 "id": provider.code,
                 "name": provider.name,
-                "logo_url": provider.logo_url if hasattr(provider, "logo_url") else "",
+                "logo_url": getattr(provider, "logo_url", "") or "",
             },
-            "mode": trip.mode,
-            "product_type": trip.product_type,
+            "mode": route.mode,
+            "product_type": route.product_type,
             "origin": {
                 "stop_id": origin.code,
                 "name": origin.name,
@@ -162,8 +162,8 @@ class TripSummaryView(APIView):
                 "name": destination.name,
                 "city_code": destination.city.code if destination.city else "",
             },
-            "departure_time": trip.departure_time,
-            "arrival_time": trip.arrival_time,
+            "departure_time": trip.departure_datetime,
+            "arrival_time": trip.arrival_datetime,
             "duration_minutes": trip.duration_minutes,
             "available_seats": trip.available_seats,
             "currency": trip.currency,
@@ -174,12 +174,8 @@ class TripSummaryView(APIView):
                 "changeable": True,
                 "refund_penalty_percent": 10,
                 "change_penalty_percent": 5,
-                "latest_change_deadline": trip.departure_time - timezone.timedelta(
-                    days=1
-                ),
-                "latest_refund_deadline": trip.departure_time - timezone.timedelta(
-                    days=1
-                ),
+                "latest_change_deadline": latest_deadline,
+                "latest_refund_deadline": latest_deadline,
             },
         }
 
