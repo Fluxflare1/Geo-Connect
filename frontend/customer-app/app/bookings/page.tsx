@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api-client";
-import type { Booking } from "@/lib/types";
-import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/lib/use-require-auth";
+import { apiFetch } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import type { BookingSummary } from "@/lib/types";
 
-function formatDateTime(iso: string | null) {
-  if (!iso) return "-";
+interface BookingsResponse {
+  bookings: BookingSummary[];
+}
+
+function formatDateTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString();
 }
@@ -17,7 +22,7 @@ export default function BookingsPage() {
   const router = useRouter();
   const { checking } = useRequireAuth();
 
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +33,7 @@ export default function BookingsPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await apiFetch<{ bookings: Booking[] }>("/bookings");
+        const data = await apiFetch<BookingsResponse>("/bookings");
         setBookings(data.bookings || []);
       } catch (err: any) {
         setError(err.message || "Failed to load bookings.");
@@ -42,21 +47,31 @@ export default function BookingsPage() {
 
   if (checking) {
     return (
-      <div className="mt-6 text-sm text-gray-600">
-        Checking your session…
+      <div className="mt-6 text-sm text-gray-600 flex items-center gap-2">
+        <Spinner size="sm" />
+        <span>Checking your session…</span>
       </div>
     );
   }
 
   return (
-    <div className="mt-6">
-      <h1 className="text-xl font-semibold mb-3">My bookings</h1>
+    <div className="mt-6 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-semibold">My bookings</h1>
+      </div>
 
-      {loading && <p className="text-sm text-gray-600">Loading bookings…</p>}
+      {loading && (
+        <p className="text-sm text-gray-600 flex items-center gap-2">
+          <Spinner size="sm" />
+          <span>Loading your bookings…</span>
+        </p>
+      )}
 
       {error && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
-          {error}
+        <div className="mb-4">
+          <Alert variant="error" title="Could not load bookings">
+            {error}
+          </Alert>
         </div>
       )}
 
@@ -66,46 +81,60 @@ export default function BookingsPage() {
         </p>
       )}
 
-      <div className="space-y-4">
-        {bookings.map(b => (
-          <div
-            key={b.id}
-            className="bg-white border rounded-lg shadow-sm p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-          >
-            <div>
-              <div className="text-xs text-gray-500 mb-1">
-                Booking ID: <span className="font-mono">{b.id}</span>
-              </div>
-              <div className="text-sm text-gray-700">
-                Status:{" "}
-                <span className="font-semibold">{b.status}</span>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Created: {formatDateTime(b.created_at)}
-              </div>
-              {b.reservation_expires_at && (
-                <div className="text-xs text-gray-500">
-                  Reservation expires:{" "}
-                  {formatDateTime(b.reservation_expires_at)}
+      {!loading && !error && bookings.length > 0 && (
+        <div className="space-y-3">
+          {bookings.map(b => (
+            <div
+              key={b.id}
+              className="border rounded-lg bg-white px-3 py-2 text-sm flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+            >
+              <div>
+                <div className="font-medium">
+                  {b.origin_name} → {b.destination_name}
                 </div>
-              )}
-            </div>
-            <div className="flex flex-col items-start md:items-end gap-2">
-              <div className="text-xs text-gray-500">
-                Passengers: {b.passengers.length}
+                <div className="text-xs text-gray-500">
+                  {b.provider_name}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {formatDateTime(b.departure_time)}
+                </div>
               </div>
-              <Button
-                variant="primary"
-                onClick={() =>
-                  router.push(`/bookings/${encodeURIComponent(b.id)}`)
-                }
-              >
-                View details
-              </Button>
+              <div className="flex flex-col items-start md:items-end gap-2">
+                <div className="text-xs text-gray-500">
+                  Status:{" "}
+                  <span className="font-semibold">{b.status}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      router.push(`/bookings/${encodeURIComponent(b.id)}`)
+                    }
+                  >
+                    View booking
+                  </Button>
+                  {b.has_tickets && (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() =>
+                        router.push(
+                          `/tickets/${encodeURIComponent(b.id)}`
+                        )
+                      }
+                    >
+                      View tickets
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
