@@ -2,38 +2,52 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useRequireAuth } from "@/lib/use-require-auth";
 import { apiFetch } from "@/lib/api-client";
-import { useRequireAuth } from "@/lib/auth-context";
-import type { Booking, Ticket } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { QRCode } from "qrcode.react";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import type { TicketDetail } from "@/lib/types";
+
+interface TicketsResponse {
+  booking_reference: string;
+  provider_name: string;
+  origin_name: string;
+  destination_name: string;
+  departure_time: string;
+  tickets: TicketDetail[];
+}
+
+function formatDateTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString();
+}
 
 export default function TicketsPage() {
+  const { bookingId } = useParams<{ bookingId: string }>();
+  const router = useRouter();
   const { checking } = useRequireAuth();
 
-  if (checking) {
-    return (
-      <div className="mt-6 text-sm text-gray-600">
-        Checking your session…
-      </div>
-    );
-  }
-
-  const params = useParams<{ bookingId: string }>();
-  const router = useRouter();
-  const bookingId = params.bookingId;
-
-  const [booking, setBooking] = useState<Booking | null>(null);
+  const [data, setData] = useState<TicketsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadBooking() {
+    if (checking) return;
+
+    async function loadTickets() {
+      if (!bookingId) {
+        router.push("/bookings");
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {
-        const data = await apiFetch<Booking>(`/bookings/${bookingId}`);
-        setBooking(data);
+        const resp = await apiFetch<TicketsResponse>(
+          `/tickets/${encodeURIComponent(bookingId)}`
+        );
+        setData(resp);
       } catch (err: any) {
         setError(err.message || "Failed to load tickets.");
       } finally {
@@ -41,89 +55,140 @@ export default function TicketsPage() {
       }
     }
 
-    if (!bookingId) {
-      router.push("/bookings");
-      return;
-    }
-
-    if (!checking) {
-      loadBooking();
-    }
+    loadTickets();
   }, [bookingId, router, checking]);
 
-  return (
-    <div className="mt-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Tickets</h1>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => router.push(`/bookings/${bookingId}`)}
-        >
-          Back to booking
-        </Button>
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600 flex items-center gap-2">
+        <Spinner size="sm" />
+        <span>Checking your session…</span>
       </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 max-w-3xl mx-auto">
+      <button
+        type="button"
+        className="text-xs text-gray-500 hover:underline mb-2"
+        onClick={() => router.push("/bookings")}
+      >
+        ← Back to bookings
+      </button>
+
+      <h1 className="text-xl font-semibold mb-3">Your tickets</h1>
 
       {loading && (
-        <p className="text-sm text-gray-600">Loading tickets…</p>
-      )}
-
-      {error && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
-          {error}
-        </div>
-      )}
-
-      {booking && booking.tickets.length === 0 && (
-        <p className="text-sm text-gray-600">
-          No tickets found for this booking yet.
+        <p className="text-sm text-gray-600 flex items-center gap-2">
+          <Spinner size="sm" />
+          <span>Loading tickets…</span>
         </p>
       )}
 
-      {booking && booking.tickets.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {booking.tickets.map(ticket => (
-            <TicketCard
-              key={ticket.id}
-              ticket={ticket}
-            />
-          ))}
+      {error && (
+        <div className="mb-4">
+          <Alert variant="error" title="Could not load tickets">
+            {error}
+          </Alert>
         </div>
       )}
-    </div>
-  );
-}
 
-function TicketCard({ ticket }: { ticket: Ticket }) {
-  return (
-    <div className="bg-white border rounded-lg shadow-sm p-4 flex flex-col items-center">
-      <div className="mb-2 text-xs text-gray-500">
-        Ticket code:
-      </div>
-      <div className="font-mono text-sm mb-2">{ticket.ticket_code}</div>
+      {data && !loading && (
+        <>
+          <div className="bg-white border rounded-lg shadow-sm p-4 mb-4 text-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs text-gray-500">Booking reference</div>
+                <div className="font-mono text-xs">
+                  {data.booking_reference}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-gray-500">Provider</div>
+                <div className="font-medium">{data.provider_name}</div>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <div className="text-xs text-gray-500">From</div>
+                <div className="font-medium">{data.origin_name}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">To</div>
+                <div className="font-medium">{data.destination_name}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Departure</div>
+                <div className="font-medium">
+                  {formatDateTime(data.departure_time)}
+                </div>
+              </div>
+            </div>
+          </div>
 
-      <div className="mb-3">
-        <QRCode
-          value={ticket.qr_payload}
-          size={180}
-          level="M"
-          includeMargin
-        />
-      </div>
+          {data.tickets.length === 0 && (
+            <Alert variant="warning" title="No tickets found">
+              This booking does not have any tickets yet. If you recently paid,
+              please check back in a moment or contact support if the issue
+              persists.
+            </Alert>
+          )}
 
-      <div className="text-xs text-gray-500">
-        Status:{" "}
-        <span className="font-semibold">{ticket.status}</span>
-      </div>
-      {ticket.valid_from && (
-        <div className="text-[11px] text-gray-500">
-          Valid from: {new Date(ticket.valid_from).toLocaleString()}
-        </div>
-      )}
-      {ticket.valid_until && (
-        <div className="text-[11px] text-gray-500">
-          Valid until: {new Date(ticket.valid_until).toLocaleString()}
-        </div>
+          {data.tickets.length > 0 && (
+            <div className="space-y-3">
+              {data.tickets.map(t => (
+                <div
+                  key={t.id}
+                  className="bg-white border rounded-lg shadow-sm p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm"
+                >
+                  <div>
+                    <div className="text-xs text-gray-500">Ticket</div>
+                    <div className="font-medium">
+                      {t.ticket_number || t.id}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Passenger: {t.passenger_name}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Seat: {t.seat_label || "General"}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-start sm:items-end gap-2">
+                    <div className="text-xs text-gray-500">
+                      Status:{" "}
+                      <span className="font-semibold">{t.status}</span>
+                    </div>
+                    <div className="text-[11px] text-gray-500 max-w-xs break-all">
+                      Scan data:{" "}
+                      <span className="font-mono">{t.qr_payload}</span>
+                    </div>
+                    {t.qr_image_url && (
+                      <img
+                        src={t.qr_image_url}
+                        alt="Ticket QR"
+                        className="h-20 w-20 border rounded-md"
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                router.push(`/bookings/${encodeURIComponent(bookingId)}`)
+              }
+            >
+              View booking details
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );
