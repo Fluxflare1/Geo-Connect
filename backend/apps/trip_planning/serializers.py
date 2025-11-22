@@ -1,10 +1,9 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from django.utils import timezone
 from rest_framework import serializers
 
-from catalog.models import Trip, TravelMode, ProductType, Stop
-from tenancy.models import Tenant
+from apps.catalog.models import TravelMode
 
 
 class LocationInputSerializer(serializers.Serializer):
@@ -53,7 +52,7 @@ class TripSearchRequestSerializer(serializers.Serializer):
     )
 
     def validate_departure_date(self, value):
-        # You may decide to allow past searches for history; here we enforce today/future.
+        # Enforce today/future (you can relax this for history if needed)
         if value < timezone.localdate():
             raise serializers.ValidationError("departure_date cannot be in the past.")
         return value
