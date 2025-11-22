@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { loginWithEmailPassword, getCurrentUser } from "@/lib/auth";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
 
-  const existingUser = typeof window !== "undefined" ? getCurrentUser() : null;
+  const existingUser =
+    typeof window !== "undefined" ? getCurrentUser() : null;
 
   const [email, setEmail] = useState(existingUser?.email || "");
   const [password, setPassword] = useState("");
@@ -40,7 +43,10 @@ export default function LoginPage() {
   if (existingUser) {
     return (
       <div className="max-w-md mx-auto mt-10 bg-white rounded-lg shadow-sm p-6 text-sm text-gray-700">
-        You are already signed in. Redirecting…
+        <div className="flex items-center gap-2">
+          <Spinner size="sm" />
+          <span>You are already signed in. Redirecting…</span>
+        </div>
       </div>
     );
   }
@@ -53,8 +59,10 @@ export default function LoginPage() {
       </p>
 
       {error && (
-        <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+        <div className="mb-4">
+          <Alert variant="error" title="Login failed">
+            {error}
+          </Alert>
         </div>
       )}
 
@@ -92,11 +100,22 @@ export default function LoginPage() {
         <Button
           type="submit"
           variant="primary"
-          className="w-full"
+          className="w-full flex items-center justify-center gap-2"
           disabled={submitting}
         >
-          {submitting ? "Signing in..." : "Sign in"}
+          {submitting && <Spinner size="sm" />}
+          <span>{submitting ? "Signing in..." : "Sign in"}</span>
         </Button>
+
+        <div className="mt-3 text-xs text-gray-600 text-center">
+          <button
+            type="button"
+            className="text-blue-600 underline"
+            onClick={() => router.push("/forgot-password")}
+          >
+            Forgot your password?
+          </button>
+        </div>
       </form>
     </div>
   );
