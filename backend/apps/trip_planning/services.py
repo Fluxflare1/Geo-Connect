@@ -1,12 +1,12 @@
 import uuid
-from datetime import datetime, time, timedelta
+from datetime import time
 from typing import Dict, List, Tuple
 
-from django.db.models import Q
+from django.db.models import F, ExpressionWrapper, DurationField
 from django.utils import timezone
 
-from catalog.models import Trip, TravelMode, ProductType, Stop
-from tenancy.models import Tenant
+from apps.catalog.models import Trip, Stop
+from apps.tenancy.models import Tenant
 
 
 class TripSearchResult:
@@ -27,71 +27,75 @@ class TripSearchResult:
         return self.trip.base_price
 
 
-def _parse_time_window(departure_date, departure_time_str) -> Tuple[datetime, datetime]:
+def _get_time_range(departure_time_str: str) -> Tuple[time | None, time | None]:
     """
-    Map 'departure_time' string to a time window on that date.
+    Map 'departure_time' string to a time-of-day window.
+
+    Returns (from_time, to_time). If both are None => no time filter.
     """
-    local_tz = timezone.get_current_timezone()
+    if not departure_time_str:
+        return None, None
 
-    if not departure_time_str or departure_time_str.upper() == "ANY":
-        start = datetime.combine(departure_date, time.min)
-        end = datetime.combine(departure_date, time.max)
-    else:
-        key = departure_time_str.upper()
-        if key == "MORNING":
-            start = datetime.combine(departure_date, time(5, 0))
-            end = datetime.combine(departure_date, time(11, 59))
-        elif key == "AFTERNOON":
-            start = datetime.combine(departure_date, time(12, 0))
-            end = datetime.combine(departure_date, time(17, 59))
-        elif key == "EVENING":
-            start = datetime.combine(departure_date, time(18, 0))
-            end = datetime.combine(departure_date, time(22, 59))
-        elif key == "NIGHT":
-            start = datetime.combine(departure_date, time(23, 0))
-            end = datetime.combine(departure_date + timedelta(days=1), time(4, 59))
-        else:
-            # Specific "HH:MM" time – we look at +/- 3 hours window
-            try:
-                hh, mm = departure_time_str.split(":")
-                base = datetime.combine(departure_date, time(int(hh), int(mm)))
-                start = base - timedelta(hours=3)
-                end = base + timedelta(hours=3)
-            except Exception:  # noqa
-                start = datetime.combine(departure_date, time.min)
-                end = datetime.combine(departure_date, time.max)
+    key = departure_time_str.upper()
 
-    start = local_tz.localize(start)
-    end = local_tz.localize(end)
-    return start, end
+    if key == "ANY":
+        return None, None
+
+    if key == "MORNING":
+        return time(5, 0), time(11, 59)
+    if key == "AFTERNOON":
+        return time(12, 0), time(17, 59)
+    if key == "EVENING":
+        return time(18, 0), time(22, 59)
+    if key == "NIGHT":
+        # For now, treat night as late-evening on that service_date
+        return time(21, 0), time(23, 59)
+
+    # Specific "HH:MM"
+    try:
+        hh, mm = key.split(":")
+        center = time(int(hh), int(mm))
+        # Approximate +/- 3 hours using simple clamps
+        start_hour = max(0, center.hour - 3)
+        end_hour = min(23, center.hour + 3)
+        return time(start_hour, center.minute), time(end_hour, center.minute)
+    except Exception:
+        # Fallback: no time filter
+        return None, None
 
 
 def _resolve_location(tenant: Tenant, location_data: Dict, is_origin: bool) -> Stop:
     """
     Map LocationInputSerializer data to a Stop instance.
-    Currently implements STOP_ID and CITY_CODE. COORDINATES can be extended later.
+
+    Supports:
+    - STOP_ID: Stop.code (your STOP_ID)
+    - CITY_CODE: any Stop in that City (using City.code)
+    - COORDINATES: nearest Stop by lat/lng
     """
+    from apps.catalog.models import City  # local import to avoid cycles
+
     loc_type = location_data["type"]
     value = location_data["value"]
 
     if loc_type == "STOP_ID":
         try:
             return Stop.objects.select_related("city").get(
-                tenant=tenant, code=value, is_active=True
+                tenant=tenant,
+                code=value,
+                active=True,
             )
         except Stop.DoesNotExist:
             raise ValueError(f"Unknown stop_id: {value}")
 
     if loc_type == "CITY_CODE":
-        # For city-based search, we pick any stop in the city as a representative origin.
-        # The search will then filter by city on routes.
         try:
             stop = (
                 Stop.objects.select_related("city")
                 .filter(
                     tenant=tenant,
                     city__code=value,
-                    is_active=True,
+                    active=True,
                 )
                 .earliest("id")
             )
@@ -100,7 +104,7 @@ def _resolve_location(tenant: Tenant, location_data: Dict, is_origin: bool) -> S
             raise ValueError(f"No stops found for city_code: {value}")
 
     if loc_type == "COORDINATES":
-        # Expect value "lat,lng". For now we approximate by nearest active stop.
+        # Expect value "lat,lng". We choose nearest active stop.
         try:
             lat_str, lng_str = value.split(",")
             lat = float(lat_str.strip())
@@ -108,19 +112,20 @@ def _resolve_location(tenant: Tenant, location_data: Dict, is_origin: bool) -> S
         except Exception:
             raise ValueError("Invalid coordinates format; expected 'lat,lng'.")
 
-        qs = Stop.objects.filter(tenant=tenant, is_active=True, latitude__isnull=False)
-        # Simple linear scan; for large datasets, use PostGIS or similar.
+        qs = Stop.objects.filter(
+            tenant=tenant,
+            active=True,
+        )
         nearest = None
         best_dist = None
         for stop in qs:
-            if stop.latitude is None or stop.longitude is None:
-                continue
-            dlat = float(stop.latitude) - lat
-            dlng = float(stop.longitude) - lng
+            dlat = float(stop.lat) - lat
+            dlng = float(stop.lng) - lng
             dist2 = dlat * dlat + dlng * dlng
             if best_dist is None or dist2 < best_dist:
                 best_dist = dist2
                 nearest = stop
+
         if nearest is None:
             raise ValueError("No suitable stops found near given coordinates.")
         return nearest
@@ -134,7 +139,13 @@ def search_trips(
 ) -> Dict:
     """
     Core search logic used by TripSearchView.
-    Returns a dict: { 'search_id': UUID, 'currency': 'NGN', 'results': [TripSearchResult...] }
+
+    Returns a dict:
+    {
+      'search_id': UUID,
+      'currency': 'NGN',
+      'results': [TripSearchResult(...), ...]
+    }
     """
     origin_loc = validated_data["origin"]
     destination_loc = validated_data["destination"]
@@ -149,42 +160,46 @@ def search_trips(
     origin_stop = _resolve_location(tenant, origin_loc, is_origin=True)
     destination_stop = _resolve_location(tenant, destination_loc, is_origin=False)
 
-    start_dt, end_dt = _parse_time_window(departure_date, departure_time_str)
+    from_time, to_time = _get_time_range(departure_time_str)
 
     qs = (
-        Trip.objects.select_related("route", "route__origin", "route__destination", "provider")
+        Trip.objects.select_related(
+            "route",
+            "route__origin",
+            "route__destination",
+            "provider",
+        )
         .filter(
             tenant=tenant,
-            is_active=True,
-            route__is_active=True,
-            departure_time__gte=start_dt,
-            departure_time__lte=end_dt,
+            active=True,
+            route__active=True,
+            service_date=departure_date,
             available_seats__gte=passengers,
+            route__origin=origin_stop,
+            route__destination=destination_stop,
         )
     )
 
-    # Filter by mode
+    # Time-of-day filter (within the service_date)
+    if from_time is not None and to_time is not None:
+        qs = qs.filter(
+            departure_time__gte=from_time,
+            departure_time__lte=to_time,
+        )
+
+    # Filter by mode (based on route.mode)
     if mode != "ANY":
-        qs = qs.filter(mode=mode)
+        qs = qs.filter(route__mode=mode)
 
-    # Filter by route origin/destination
-    qs = qs.filter(
-        route__origin=origin_stop,
-        route__destination=destination_stop,
-    )
-
-    # Filters.providers: provider IDs/codes.
+    # providers filter: list of provider codes or IDs
     providers_filter = filters.get("providers") if filters else None
     if providers_filter:
         qs = qs.filter(provider__code__in=providers_filter)
 
-    # filters.max_price
+    # max_price filter
     max_price = filters.get("max_price") if filters else None
     if max_price is not None:
         qs = qs.filter(base_price__lte=max_price)
-
-    # filters.direct_only – for now all trips are direct.
-    # If multi-leg is introduced, apply additional constraints here.
 
     # Sorting
     if sort_by == "PRICE":
@@ -192,13 +207,7 @@ def search_trips(
     elif sort_by == "ARRIVAL_TIME":
         order_field = "arrival_time"
     elif sort_by == "DURATION":
-        order_field = "arrival_time__minus_departure"  # can't order by property; handle via annotation if needed
-    else:
-        order_field = "departure_time"
-
-    if sort_by == "DURATION":
-        from django.db.models import ExpressionWrapper, DurationField, F
-
+        # Postgres: difference between time fields -> interval
         qs = qs.annotate(
             duration=ExpressionWrapper(
                 F("arrival_time") - F("departure_time"),
@@ -206,16 +215,18 @@ def search_trips(
             )
         )
         order_field = "duration"
+    else:
+        # DEPARTURE_TIME (default)
+        order_field = "departure_time"
 
     if sort_order == "DESC":
         order_field = f"-{order_field}"
 
     qs = qs.order_by(order_field)
 
-    # Collect search results
     results: List[TripSearchResult] = [TripSearchResult(trip, passengers) for trip in qs]
 
-    # Decide currency (for now from first result, default NGN if none).
+    # Decide currency: from first result or default "NGN"
     currency = "NGN"
     if results:
         currency = results[0].trip.currency
