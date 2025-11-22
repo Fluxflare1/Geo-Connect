@@ -3,9 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
-import { useRequireAuth } from "@/lib/auth-context";
 import type { SupportTicketDetail, SupportMessage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import { useRequireAuth } from "@/lib/use-require-auth";
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
@@ -13,18 +15,9 @@ function formatDateTime(iso: string) {
 }
 
 export default function SupportTicketDetailPage() {
-  const { checking } = useRequireAuth();
-
-  if (checking) {
-    return (
-      <div className="mt-6 text-sm text-gray-600">
-        Checking your session…
-      </div>
-    );
-  }
-
   const params = useParams<{ ticketId: string }>();
   const router = useRouter();
+  const { checking } = useRequireAuth();
 
   const ticketId = params.ticketId;
 
@@ -38,7 +31,14 @@ export default function SupportTicketDetailPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (checking) return;
+
     async function loadTicket() {
+      if (!ticketId) {
+        router.push("/support");
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {
@@ -53,14 +53,7 @@ export default function SupportTicketDetailPage() {
       }
     }
 
-    if (!ticketId) {
-      router.push("/support");
-      return;
-    }
-
-    if (!checking) {
-      loadTicket();
-    }
+    loadTicket();
   }, [ticketId, router, checking]);
 
   useEffect(() => {
@@ -85,7 +78,6 @@ export default function SupportTicketDetailPage() {
 
       setMessageBody("");
 
-      // reload ticket to get latest messages
       const data = await apiFetch<SupportTicketDetail>(
         `/support/tickets/${ticket.id}`
       );
@@ -95,6 +87,15 @@ export default function SupportTicketDetailPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="mt-6 text-sm text-gray-600 flex items-center gap-2">
+        <Spinner size="sm" />
+        <span>Checking your session…</span>
+      </div>
+    );
   }
 
   return (
@@ -124,12 +125,17 @@ export default function SupportTicketDetailPage() {
       </div>
 
       {loading && (
-        <p className="text-sm text-gray-600">Loading conversation…</p>
+        <p className="text-sm text-gray-600 flex items-center gap-2">
+          <Spinner size="sm" />
+          <span>Loading conversation…</span>
+        </p>
       )}
 
       {error && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
-          {error}
+        <div className="mb-4">
+          <Alert variant="error" title="Could not load ticket">
+            {error}
+          </Alert>
         </div>
       )}
 
@@ -157,8 +163,10 @@ export default function SupportTicketDetailPage() {
             className="border rounded-lg bg-white p-3"
           >
             {sendError && (
-              <div className="mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-                {sendError}
+              <div className="mb-2">
+                <Alert variant="error" title="Could not send message">
+                  {sendError}
+                </Alert>
               </div>
             )}
 
@@ -176,8 +184,10 @@ export default function SupportTicketDetailPage() {
                 type="submit"
                 variant="primary"
                 disabled={sending || !messageBody.trim()}
+                className="flex items-center gap-2"
               >
-                {sending ? "Sending…" : "Send"}
+                {sending && <Spinner size="sm" />}
+                <span>{sending ? "Sending…" : "Send"}</span>
               </Button>
             </div>
           </form>
