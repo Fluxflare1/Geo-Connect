@@ -36,4 +36,6 @@ urlpatterns = [
     path("api/v1/", include("apps.support.urls")),
 
     path("api/v1/auth/", include("apps.iam.urls")),
+
+    path("api/v1/trips/", include("trip_planning.urls")),
 ]
